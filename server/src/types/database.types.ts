@@ -5,3 +5,5 @@ export interface User {
   password: string;
   created_at: string;
 }
+
+export type SafeUser = Omit<User, 'password'>;
