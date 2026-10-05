@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { supabase } from '../config/supabaseClient';
+import { createUser, RepositoryError } from '../repositories/userRepository';
 import { SafeUser } from '../types/database.types';
 import { hashPassword } from '../utils/password';
 
@@ -21,29 +21,27 @@ export const registerUser = async (userData: CreateUserData): Promise<SafeUser> 
   const userId = crypto.randomUUID();
   const createdAt = new Date().toISOString();
 
-  // Omit .select() to avoid triggering Postgres SELECT RLS checks for anon role
-  const { error } = await supabase.from('users').insert([
-    {
+  try {
+    const userRecord = await createUser({
       id: userId,
       name: userData.name,
       email: userData.email,
       password: hashedPassword,
       created_at: createdAt
-    }
-  ]);
+    });
 
-  if (error) {
+    return {
+      id: userRecord.id,
+      name: userRecord.name,
+      email: userRecord.email,
+      created_at: userRecord.created_at
+    };
+  } catch (err: unknown) {
     // Error code 23505 represents a unique constraint violation in PostgreSQL
-    if (error.code === '23505') {
+    if (err instanceof RepositoryError && err.code === '23505') {
       throw new UserAlreadyExistsError();
     }
-    throw new Error(error.message);
+    throw err;
   }
-
-  return {
-    id: userId,
-    name: userData.name,
-    email: userData.email,
-    created_at: createdAt
-  };
 };
+
